@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -76,6 +77,9 @@ namespace ConvertExecuteSQL
             base.Dispose(disposing);
         }
 
+
+        Regex regex = new Regex("exec (sp_executesql|sys.sp_executesql)", RegexOptions.IgnoreCase);
+
         void DisplayClipboardData()
         {
             try
@@ -86,8 +90,36 @@ namespace ConvertExecuteSQL
                 if (iData.GetDataPresent(DataFormats.Text))
                 {
                     var strSQL = (string)iData.GetData(DataFormats.Text);
-                    if (!strSQL.Contains("exec sp_executesql") || strSQL.Trim() == "exec sp_executesql") return;
-                    var newSql = ConvertSql(strSQL);
+
+                    if (!regex.IsMatch(strSQL))
+                    {
+                        return;
+                    }
+
+                    //if (!strSQL.Contains("exec sp_executesql") || strSQL.Trim() == "exec sp_executesql") return;
+
+                    string newSql = string.Empty;
+
+                    //string[] batch = strSQL.Split(new[] { "Go", "go", "GO" }, StringSplitOptions.None);
+
+                    //使用 正则表达式 拆分 批量操作
+                    //Regex regexs = new Regex(@"Go$");
+
+                    var options = System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant;
+
+
+
+                    Regex regexs = new Regex(@"\bgo\b", options);
+
+                    string[] batch = regexs.Split(strSQL);
+
+
+                    foreach (var item in batch)
+                    {
+                        newSql += ConvertSql(item) + "\n GO \n";
+                    }
+
+
                     Clipboard.SetText(newSql);
                 }
             }
@@ -98,6 +130,8 @@ namespace ConvertExecuteSQL
 
         private static string ConvertSql(string origSql)
         {
+            if (origSql.Trim() == string.Empty) { return string.Empty; }
+
             var tableParameterSql = string.Empty;
             var indexOf = origSql.IndexOf("exec sp_executesql");    // origSql.Substring(0, origSql.IndexOf("exec sp_executesql") - 1);
             if (indexOf > 0)
